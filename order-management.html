@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>E-Commerce Order Management System</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Segoe UI,Arial,sans-serif;background:#f1f5f9;color:#1e293b;display:flex;min-height:100vh}
+aside{width:210px;background:#1e293b;color:#fff;padding:16px;flex-shrink:0}
+aside h2{font-size:16px;margin:0 0 16px;line-height:1.3}
+aside button{display:block;width:100%;text-align:left;background:none;border:0;color:#cbd5e1;padding:10px;border-radius:6px;cursor:pointer;font-size:14px;margin-bottom:4px}
+aside button.on,aside button:hover{background:#334155;color:#fff}
+main{flex:1;padding:20px;min-width:0}
+h1{margin:0 0 16px;font-size:22px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}
+.card,.box{background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 3px #0001}
+.card small{color:#64748b}.card b{display:block;font-size:24px;margin-top:4px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.bar{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:13px}
+.bar span:first-child{width:110px;flex-shrink:0}.bar i{display:block;height:16px;background:#3b82f6;border-radius:4px;min-width:2px}
+.tools{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+input,select{padding:8px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;width:100%}
+.tools input,.tools select{width:auto;flex:1;min-width:130px}
+.btn{background:#2563eb;color:#fff;border:0;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:14px}
+.btn.g{background:#475569}.btn.r{background:#dc2626}.btn.s{padding:4px 9px;font-size:12px}
+.wrap{overflow-x:auto}table{width:100%;border-collapse:collapse;background:#fff;font-size:14px}
+th,td{padding:9px 10px;text-align:left;border-bottom:1px solid #e2e8f0;white-space:nowrap}
+th{background:#f8fafc;color:#475569}.low{color:#dc2626;font-weight:600}
+td select{padding:4px;width:auto}
+#modal{position:fixed;inset:0;background:#0006;display:none;align-items:center;justify-content:center;padding:12px}
+#modal form{background:#fff;padding:20px;border-radius:10px;width:100%;max-width:420px;max-height:92vh;overflow:auto}
+#modal label{display:block;font-size:13px;margin:10px 0 3px;color:#475569}
+.err{color:#dc2626;font-size:13px;margin-top:8px}
+@media(max-width:760px){body{flex-direction:column}aside{width:100%;display:flex;gap:4px;overflow-x:auto;padding:8px}aside h2{display:none}aside button{width:auto;white-space:nowrap;margin:0}main{padding:12px}}
+</style></head><body>
+<aside><h2>🛒 Order Management</h2>
+<button data-v="dash" class="on">Dashboard</button><button data-v="orders">Orders</button>
+<button data-v="customers">Customers</button><button data-v="products">Products</button>
+<button data-v="reports">Reports</button></aside>
+<main><h1 id="title"></h1><div id="view"></div></main>
+<div id="modal"><form id="form"></form></div>
+<script>
+const $=s=>document.querySelector(s), STAT=['Pending','Processing','Shipped','Delivered','Cancelled'];
+const day=n=>{const d=new Date();d.setDate(d.getDate()-n);return d.toISOString().slice(0,10)};
+const money=n=>'₹'+Math.round(n).toLocaleString('en-IN');
+function seed(){return{
+customers:[[1,'Asha Rao','9876500001','Bengaluru'],[2,'Rahul Mehta','9876500002','Mumbai'],[3,'Priya Nair','9876500003','Kochi'],[4,'Vikram Singh','9876500004','Delhi'],[5,'Sneha Iyer','9876500005','Chennai'],[6,'Imran Khan','9876500006','Hyderabad']].map(a=>({id:a[0],name:a[1],phone:a[2],city:a[3]})),
+products:[[1,'Wireless Mouse','Electronics',799,40],[2,'Bluetooth Speaker','Electronics',2499,15],[3,'Cotton T-Shirt','Fashion',599,60],[4,'Running Shoes','Fashion',3299,20],[5,'Steel Water Bottle','Home',449,50],[6,'Desk Lamp','Home',1199,12],[7,'Notebook Pack','Stationery',249,100],[8,'Backpack','Fashion',1799,18]].map(a=>({id:a[0],name:a[1],cat:a[2],price:a[3],stock:a[4]})),
+orders:[[1,1,1,2,0,'UPI','Delivered',20],[2,2,2,1,5,'Card','Delivered',18],[3,3,3,4,0,'COD','Delivered',16],[4,4,4,1,10,'UPI','Shipped',12],[5,5,5,3,0,'Cash','Delivered',11],[6,6,6,2,0,'Card','Processing',9],[7,1,7,10,5,'UPI','Delivered',8],[8,2,8,1,0,'UPI','Shipped',6],[9,3,2,2,10,'Card','Pending',5],[10,4,1,3,0,'COD','Cancelled',4],[11,5,3,5,0,'UPI','Processing',3],[12,6,4,2,5,'Card','Pending',2],[13,1,6,3,0,'UPI','Pending',1],[14,2,5,4,0,'COD','Pending',0]].map(a=>({id:a[0],cid:a[1],pid:a[2],qty:a[3],disc:a[4],pay:a[5],status:a[6],date:day(a[7])}))}}
+let db=JSON.parse(localStorage.getItem('oms')||'null')||seed(), view='dash';
+const save=()=>localStorage.setItem('oms',JSON.stringify(db));
+const cust=id=>db.customers.find(c=>c.id==id)||{name:'(deleted)'}, prod=id=>db.products.find(p=>p.id==id)||{name:'(deleted)',price:0,stock:0};
+const total=o=>prod(o.pid).price*o.qty*(1-o.disc/100);
+const avail=(p,ex)=>p.stock-db.orders.filter(o=>o.pid==p.id&&o.status!='Cancelled'&&o.id!=ex).reduce((s,o)=>s+o.qty,0);
+const live=()=>db.orders.filter(o=>o.status!='Cancelled');
+const bars=(items,fmt=x=>x)=>{const m=Math.max(1,...items.map(i=>i[1]));return items.map(i=>`<div class="bar"><span>${i[0]}</span><i style="width:${i[1]/m*60}%"></i><span>${fmt(i[1])}</span></div>`).join('')||'<small>No data</small>'};
+const group=(arr,keyFn,valFn)=>{const r={};arr.forEach(x=>{const k=keyFn(x);r[k]=(r[k]||0)+valFn(x)});return Object.entries(r).sort((a,b)=>b[1]-a[1])};
+const F={
+customers:[['name','Name','text'],['phone','Phone','text'],['city','City','text']],
+products:[['name','Product name','text'],['cat','Category','text'],['price','Price (₹)','number'],['stock','Opening stock','number']],
+orders:[['date','Order date','date'],['cid','Customer','select',()=>db.customers.map(c=>[c.id,c.name])],['pid','Product','select',()=>db.products.map(p=>[p.id,p.name+' (₹'+p.price+')'])],['qty','Quantity','number'],['disc','Discount %','number'],['pay','Payment method','select',()=>['Cash','UPI','Card','COD'].map(x=>[x,x])],['status','Status','select',()=>STAT.map(x=>[x,x])]]};
+const NAMES={customers:'Customer',products:'Product',orders:'Order'};
+
+function openForm(t,id){
+  const rec=id?db[t].find(x=>x.id==id):{date:day(0),qty:1,disc:0,pay:'UPI',status:'Pending'};
+  $('#form').innerHTML=`<h3 style="margin:0">${id?'Edit':'Add'} ${NAMES[t]}</h3>`+F[t].map(f=>{const v=rec[f[0]]??'';
+    return `<label>${f[1]}</label>`+(f[2]=='select'?`<select name="${f[0]}">${f[3]().map(o=>`<option value="${o[0]}" ${o[0]==v?'selected':''}>${o[1]}</option>`).join('')}</select>`:`<input name="${f[0]}" type="${f[2]}" value="${v}" ${f[2]=='number'?'min="0"':''} required>`)}).join('')+
+    `<div class="err" id="err"></div><div style="margin-top:14px;display:flex;gap:8px"><button class="btn">Save</button><button type="button" class="btn g" onclick="closeForm()">Cancel</button></div>`;
+  $('#form').onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData($('#form')));
+    F[t].forEach(f=>{if(f[2]=='number'||(f[2]=='select'&&['cid','pid'].includes(f[0])))d[f[0]]=+d[f[0]]});
+    if(t=='orders'){const p=prod(d.pid);if(d.qty<1)return $('#err').textContent='Quantity must be at least 1.';
+      if(d.disc>100)return $('#err').textContent='Discount cannot exceed 100%.';
+      if(d.status!='Cancelled'&&d.qty>avail(p,id))return $('#err').textContent='Only '+avail(p,id)+' units of '+p.name+' in stock.'}
+    if(id)Object.assign(rec,d);else{d.id=Math.max(0,...db[t].map(x=>x.id))+1;db[t].push(d)}
+    save();closeForm();render()};
+  $('#modal').style.display='flex'}
+const closeForm=()=>$('#modal').style.display='none';
+function del(t,id){
+  if(t=='customers'&&db.orders.some(o=>o.cid==id))return alert('This customer has orders and cannot be deleted.');
+  if(t=='products'&&db.orders.some(o=>o.pid==id))return alert('This product is used in orders and cannot be deleted.');
+  if(confirm('Delete this '+NAMES[t].toLowerCase()+'?')){db[t]=db[t].filter(x=>x.id!=id);save();render()}}
+function setStatus(id,s){const o=db.orders.find(x=>x.id==id);
+  if(s!='Cancelled'&&o.status=='Cancelled'&&o.qty>avail(prod(o.pid),id)){alert('Not enough stock to reopen this order.');return render()}
+  o.status=s;save();render()}
+const acts=(t,id)=>`<button class="btn s" onclick="openForm('${t}',${id})">Edit</button> <button class="btn s r" onclick="del('${t}',${id})">Delete</button>`;
+const table=(heads,rows)=>`<div class="wrap"><table><tr>${heads.map(h=>`<th>${h}</th>`).join('')}</tr>${rows||`<tr><td colspan="${heads.length}">No records found.</td></tr>`}</table></div>`;
+const toolbar=(t,extra='')=>`<div class="tools"><input id="q" placeholder="Search..." oninput="render(true)" value="${window.qv||''}">${extra}<button class="btn" onclick="openForm('${t}')">+ Add ${NAMES[t]}</button></div>`;
+const match=(s)=>s.toLowerCase().includes((window.qv||'').toLowerCase());
+
+function render(keep){
+  if(keep===true)window.qv=$('#q').value;else if(keep!==undefined||!window.keepQ)window.qv=window.qv;
+  document.querySelectorAll('aside button').forEach(b=>b.classList.toggle('on',b.dataset.v==view));
+  const T={dash:'Dashboard',orders:'Orders',customers:'Customers',products:'Products',reports:'Reports'};$('#title').textContent=T[view];
+  const V=$('#view');
+  if(view=='dash'){const L=live(),rev=L.reduce((s,o)=>s+total(o),0),low=db.products.filter(p=>avail(p,0)<=10);
+    V.innerHTML=`<div class="cards"><div class="card"><small>Total orders</small><b>${db.orders.length}</b></div>
+    <div class="card"><small>Revenue (excl. cancelled)</small><b>${money(rev)}</b></div>
+    <div class="card"><small>Pending orders</small><b>${db.orders.filter(o=>o.status=='Pending').length}</b></div>
+    <div class="card"><small>Avg. order value</small><b>${money(L.length?rev/L.length:0)}</b></div>
+    <div class="card"><small>Low-stock products</small><b class="${low.length?'low':''}">${low.length}</b></div></div>
+    <div class="grid2"><div class="box"><h3>Orders by status</h3>${bars(STAT.map(s=>[s,db.orders.filter(o=>o.status==s).length]))}</div>
+    <div class="box"><h3>Revenue by category</h3>${bars(group(L,o=>prod(o.pid).cat,total),money)}</div>
+    <div class="box"><h3>Recent orders</h3>${table(['ID','Customer','Total','Status'],[...db.orders].sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id).slice(0,5).map(o=>`<tr><td>#${o.id}</td><td>${cust(o.cid).name}</td><td>${money(total(o))}</td><td>${o.status}</td></tr>`).join(''))}</div>
+    <div class="box"><h3>Stock alerts (10 or fewer)</h3>${low.map(p=>`<div class="bar"><span style="width:auto">${p.name}</span><b class="low">${avail(p,0)} left</b></div>`).join('')||'<small>All products well stocked.</small>'}</div></div>`}
+  if(view=='orders'){const sf=window.sf||'';
+    const rows=db.orders.filter(o=>(!sf||o.status==sf)&&match(`${o.id} ${cust(o.cid).name} ${prod(o.pid).name} ${o.pay}`)).sort((a,b)=>b.date.localeCompare(a.date)).map(o=>
+      `<tr><td>#${o.id}</td><td>${o.date}</td><td>${cust(o.cid).name}</td><td>${prod(o.pid).name}</td><td>${o.qty}</td><td>${o.disc}%</td><td>${money(total(o))}</td><td>${o.pay}</td>
+      <td><select onchange="setStatus(${o.id},this.value)">${STAT.map(s=>`<option ${s==o.status?'selected':''}>${s}</option>`).join('')}</select></td><td>${acts('orders',o.id)}</td></tr>`).join('');
+    V.innerHTML=toolbar('orders',`<select onchange="window.sf=this.value;render()"><option value="">All statuses</option>${STAT.map(s=>`<option ${s==sf?'selected':''}>${s}</option>`).join('')}</select><button class="btn g" onclick="exportCSV()">Export CSV</button>`)+table(['ID','Date','Customer','Product','Qty','Disc.','Total','Payment','Status','Actions'],rows)}
+  if(view=='customers'){V.innerHTML=toolbar('customers')+table(['ID','Name','Phone','City','Orders','Total spent','Actions'],
+    db.customers.filter(c=>match(c.name+c.city+c.phone)).map(c=>{const os=live().filter(o=>o.cid==c.id);return `<tr><td>${c.id}</td><td>${c.name}</td><td>${c.phone}</td><td>${c.city}</td><td>${os.length}</td><td>${money(os.reduce((s,o)=>s+total(o),0))}</td><td>${acts('customers',c.id)}</td></tr>`}).join(''))}
+  if(view=='products'){V.innerHTML=toolbar('products')+table(['ID','Product','Category','Price','Opening stock','Available','Actions'],
+    db.products.filter(p=>match(p.name+p.cat)).map(p=>{const a=avail(p,0);return `<tr><td>${p.id}</td><td>${p.name}</td><td>${p.cat}</td><td>${money(p.price)}</td><td>${p.stock}</td><td class="${a<=10?'low':''}">${a}${a<=10?' ⚠':''}</td><td>${acts('products',p.id)}</td></tr>`}).join(''))}
+  if(view=='reports'){const L=live();
+    V.innerHTML=`<div class="tools"><button class="btn g" onclick="exportCSV()">Export orders CSV</button><button class="btn r" onclick="resetData()">Reset sample data</button></div>
+    <div class="grid2"><div class="box"><h3>Top customers by spending</h3>${bars(group(L,o=>cust(o.cid).name,total).slice(0,6),money)}</div>
+    <div class="box"><h3>Best-selling products (units)</h3>${bars(group(L,o=>prod(o.pid).name,o=>o.qty).slice(0,6))}</div>
+    <div class="box"><h3>Revenue by payment method</h3>${bars(group(L,o=>o.pay,total),money)}</div>
+    <div class="box"><h3>Revenue by city</h3>${bars(group(L,o=>cust(o.cid).city||'-',total),money)}</div>
+    <div class="box"><h3>Cancellation rate</h3><div class="cards" style="margin:0"><div class="card"><b>${db.orders.length?Math.round(db.orders.filter(o=>o.status=='Cancelled').length/db.orders.length*100):0}%</b><small>of all orders cancelled</small></div></div></div></div>`}
+}
+function exportCSV(){const r=[['ID','Date','Customer','Product','Qty','Discount%','Total','Payment','Status'],...db.orders.map(o=>[o.id,o.date,cust(o.cid).name,prod(o.pid).name,o.qty,o.disc,Math.round(total(o)),o.pay,o.status])];
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([r.map(x=>x.map(v=>`"${v}"`).join(',')).join('\n')],{type:'text/csv'}));a.download='orders.csv';a.click()}
+function resetData(){if(confirm('Replace all data with the original sample data?')){db=seed();save();render()}}
+document.querySelectorAll('aside button').forEach(b=>b.onclick=()=>{view=b.dataset.v;window.qv='';render()});
+$('#modal').onclick=e=>{if(e.target.id=='modal')closeForm()};
+render();
+</script></body></html>
